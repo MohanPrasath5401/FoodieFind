@@ -12,7 +12,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axiosInstance.post('/api/auth/login', formData);
+      const response = await axios.post('http://localhost:3001/api/auth/login', formData);
       login(response.data);
       // --- CHANGE ---
       // Redirect to the new restaurants page instead of tasks

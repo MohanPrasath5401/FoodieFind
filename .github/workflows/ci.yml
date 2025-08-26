@@ -1,28 +1,53 @@
-name: CI
+name: Food Delivery CI/CD Pipeline
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  test-and-deploy:
+    runs-on: self-hosted  # We'll set up the AWS EC2 runner in Step 4
+    environment: production  # Links to secrets
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-        steps:
-        - name: Checkout code
-            uses: actions/checkout@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-        - name: Set up Node.js
-            uses: actions/setup-node@v2
-            with:
-                node-version: '14'
+      - name: Install Global Dependencies
+        run: |
+          npm install -g yarn pm2
 
-        - name: Install dependencies
-            run: npm install
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: yarn install
 
-        - name: Run tests
-            run: npm test
+      - name: Install Frontend Dependencies and Build
+        working-directory: ./frontend
+        run: |
+          sudo rm -rf ./build
+          yarn install
+          yarn run build
+
+      - name: Run Backend Tests
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PORT: ${{ secrets.PORT }}
+        working-directory: ./backend
+        run: npm test
+
+      - name: Create .env File for Production
+        run: |
+          cd ./backend
+          touch .env
+          echo "${{ secrets.PROD }}" > .env
+
+      - name: Restart Services
+        run: |
+          pm2 restart all || pm2 start all

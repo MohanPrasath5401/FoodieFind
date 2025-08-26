@@ -1,59 +1,79 @@
 // backend/controllers/restaurantController.js
 const Restaurant = require('../models/Restaurant');
+const mongoose = require('mongoose');
 
-// Create a restaurant. (No changes, correctly assigns to the logged-in user, who will be an admin)
+// Create a restaurant
 const createRestaurant = async (req, res) => {
     try {
         const { name, address, cuisine, menu } = req.body;
         if (!name || !address || !cuisine) {
             return res.status(400).json({ message: 'Name, address, and cuisine are required' });
         }
+        // Validate menu if provided
+        if (menu && (!Array.isArray(menu) || menu.some(item => !item.name || !item.price))) {
+            return res.status(400).json({ message: 'Menu must be an array of items with name and price' });
+        }
         const restaurant = new Restaurant({ name, address, cuisine, menu: menu || [], user: req.user.id });
         const createdRestaurant = await restaurant.save();
         res.status(201).json(createdRestaurant);
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error creating restaurant:', error);
+        res.status(500).json({ message: 'Failed to create restaurant' });
     }
 };
 
-// --- MODIFIED ---
-// Get ALL restaurants. Any logged-in user can view them.
+// Get ALL restaurants
 const getRestaurants = async (req, res) => {
     try {
-        // Find ALL restaurants, not just those for a specific user
         const restaurants = await Restaurant.find({});
         res.status(200).json(restaurants);
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error fetching restaurants:', error);
+        res.status(500).json({ message: 'Failed to fetch restaurants' });
     }
 };
 
-// --- MODIFIED ---
-// Get a single restaurant by ID. Any logged-in user can view it.
+// Get a single restaurant by ID
 const getRestaurantById = async (req, res) => {
     try {
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid restaurant ID' });
+        }
         const restaurant = await Restaurant.findById(req.params.id);
         if (!restaurant) {
             return res.status(404).json({ message: 'Restaurant not found' });
         }
-        // REMOVED user ownership check. Any logged-in user can see any restaurant.
         res.status(200).json(restaurant);
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error fetching restaurant:', error);
+        res.status(500).json({ message: 'Failed to fetch restaurant' });
     }
 };
 
-
-// --- MODIFIED ---
-// Update a restaurant. This is now an admin-only action.
+// Update a restaurant (admin-only)
 const updateRestaurant = async (req, res) => {
     try {
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid restaurant ID' });
+        }
         let restaurant = await Restaurant.findById(req.params.id);
         if (!restaurant) {
             return res.status(404).json({ message: 'Restaurant not found' });
         }
-        // REMOVED user ownership check. The 'admin' middleware handles authorization.
         const { name, address, cuisine, menu } = req.body;
+        // Validate inputs
+        if (name && typeof name !== 'string') {
+            return res.status(400).json({ message: 'Name must be a string' });
+        }
+        if (address && typeof address !== 'string') {
+            return res.status(400).json({ message: 'Address must be a string' });
+        }
+        if (cuisine && typeof cuisine !== 'string') {
+            return res.status(400).json({ message: 'Cuisine must be a string' });
+        }
+        if (menu && (!Array.isArray(menu) || menu.some(item => !item.name || !item.price))) {
+            return res.status(400).json({ message: 'Menu must be an array of items with name and price' });
+        }
         restaurant.name = name || restaurant.name;
         restaurant.address = address || restaurant.address;
         restaurant.cuisine = cuisine || restaurant.cuisine;
@@ -61,23 +81,25 @@ const updateRestaurant = async (req, res) => {
         const updatedRestaurant = await restaurant.save();
         res.status(200).json(updatedRestaurant);
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error updating restaurant:', error);
+        res.status(500).json({ message: 'Failed to update restaurant' });
     }
 };
 
-// --- MODIFIED ---
-// Delete a restaurant. This is now an admin-only action.
+// Delete a restaurant (admin-only)
 const deleteRestaurant = async (req, res) => {
     try {
-        const restaurant = await Restaurant.findById(req.params.id);
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid restaurant ID' });
+        }
+        const restaurant = await Restaurant.findByIdAndDelete(req.params.id);
         if (!restaurant) {
             return res.status(404).json({ message: 'Restaurant not found' });
         }
-        // REMOVED user ownership check. The 'admin' middleware handles authorization.
-        await restaurant.deleteOne();
         res.status(200).json({ message: 'Restaurant removed' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error deleting restaurant:', error);
+        res.status(500).json({ message: 'Failed to delete restaurant' });
     }
 };
 
